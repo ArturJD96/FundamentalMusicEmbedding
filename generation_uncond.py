@@ -1,9 +1,10 @@
-
 import numpy as np
-from data_processing.data_loading import tokenizer_plain, detokenizer_plain
-from data_processing.data_loading import MotifDataset 
+# from data_processing.data_loading import tokenizer_plain, detokenizer_plain
+# from data_processing.data_loading import MotifDataset 
+from demo.data_loading import tokenizer_plain, detokenizer_plain, MotifDataset
 from model.model import RIPO_transformer, loss_function_baseline
-from data_processing.utils import Sampler_torch, write_midi_monophonic
+# from data_processing.utils import Sampler_torch, write_midi_monophonic
+from demo.utils import Sampler_torch, write_midi_monophonic
 from utils.eval_utils import get_rep_seq, get_unique_tokens, get_unique_intervals
 
 import torch.nn as nn
@@ -19,6 +20,9 @@ import glob
 import json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+
+import pathlib as p
+
 class generator():
 	def __init__(self, tokenizer, detokenizer, sampler,model):
 		self.tokenizer = tokenizer
@@ -105,16 +109,20 @@ def trim_seed_music(inp, dur, seed_bar_num, detokenizer):
 
 if __name__ =="__main__":
 	#config file should contain the folder path where the ckpt is stored
-	gen_config_path = "config/generation_uncond.yaml"
+	gen_config_path = p.Path("demo/config/generation_uncond.yaml")
 	with open (gen_config_path, 'r') as f:
 		gen_cfg = yaml.safe_load(f)
-	ckpt_path = gen_cfg["ckpt_path"]
+	ckpt_path = p.Path(gen_cfg["ckpt_path"])
 	device = gen_cfg["device"] 
 	seed_bar_num = gen_cfg['seed_bar_num']
 	target_bar_num = gen_cfg['target_bar_num']
+
+	# HACK
+	device = 'mps'
 	
-	#model config & load model 
-	with open (glob.glob(ckpt_path+"/*.yaml")[0], 'r') as f:
+	#model config & load model
+	# with open (glob.glob(ckpt_path+"/*.yaml")[0], 'r') as f:
+	with (ckpt_path/'ripo_transformer.yaml').open() as f: # HACK AJD
 		model_cfg = yaml.safe_load(f)
 		model_cfg['device'] = device
 		model_cfg['relative_pitch_attention']['device'] = device
@@ -136,7 +144,7 @@ if __name__ =="__main__":
 		model.pitch_embedding.to(device)
 		model.pitch_embedding.angles = model.pitch_embedding.angles.to(device)
 
-	model.load_state_dict(torch.load(ckpt_path+"/best_loss.pth"))
+	model.load_state_dict(torch.load(ckpt_path / "best_loss.pth", map_location='mps'))
 	model.eval()
 
 	#tokenizer & detokenizer
@@ -153,13 +161,15 @@ if __name__ =="__main__":
 		documents = yaml.dump(gen_cfg, f)
 
 	#load data 
-	dataset = MotifDataset(**model_cfg["dataset"])	
-	train_dataset, valid_dataset = torch.utils.data.random_split(dataset, [int(len(dataset)*0.9), len(dataset) - int(len(dataset)*0.9)], generator=torch.Generator().manual_seed(0)) #using the same seed to prevent data leaking (use valid set which is not seen during training for generation)
+	print(model_cfg["dataset"])
+	dataset = MotifDataset(**model_cfg["dataset"])
+	train_dataset, valid_dataset = torch.utils.data.random_split(dataset, [int(len(dataset)*0.9), len(dataset) - int(len(dataset)*0.9)], generator=torch.Generator(device='mps').manual_seed(0)) #using the same seed to prevent data leaking (use valid set which is not seen during training for generation)
 	print(f"valid:{len(valid_dataset)}")
 	valid_dataloader = DataLoader(valid_dataset, batch_size=1, shuffle=False)
 
 	#generation
 	for i,data in tqdm(enumerate(valid_dataloader)):
+
 		try:
 			pitch,dur= data[0]['pitch'].numpy(),data[0]['dur_p'].numpy()
 			pitch_rel, pitch_rel_mask, dur_rel, dur_rel_mask, dur_cumsum = data[0]['pitch_rel'].numpy(), data[0]['pitch_rel_mask'].numpy(), data[0]['dur_rel'].numpy(), data[0]['dur_rel_mask'].numpy(), data[0]['dur_onset_cumsum'].numpy()

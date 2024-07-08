@@ -1,0 +1,9 @@
+ckpt_path: checkpoints/checkpoints/ripo_transformer/
+device: cuda:2
+sampling:
+  decoder_choice: top_k
+  temperature: 1.0
+  top_k: 5
+  top_p: 0.9
+seed_bar_num: 2
+target_bar_num: 16

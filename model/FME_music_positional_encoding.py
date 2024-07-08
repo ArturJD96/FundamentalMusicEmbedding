@@ -5,15 +5,17 @@ import torch.nn.functional as F
 import math
 import matplotlib.pyplot as plt
 
+torch.set_default_device("mps")
 
 class Fundamental_Music_Embedding(nn.Module):
 	def __init__(self, d_model, base, if_trainable = False, if_translation_bias_trainable = True, device='cpu', type = "se",emb_nn=None,translation_bias_type = "nd"):
 		super().__init__()
 		self.d_model = d_model
+		device = 'mps'  # HACK
 		self.device = device
 		self.base = base
 		self.if_trainable = if_trainable #whether the se is trainable 
-		
+
 		if translation_bias_type is not None:
 			self.if_translation_bias = True
 			self.if_translation_bias_trainable = if_translation_bias_trainable #default the 2d vector is trainable
@@ -156,15 +158,18 @@ class Fundamental_Music_Embedding(nn.Module):
 
 class Music_PositionalEncoding(nn.Module):
 
-	def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, if_index = True, if_global_timing = True, if_modulo_timing = True, device = 'cuda:0'):
+	def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000, if_index = True, if_global_timing = True, if_modulo_timing = True, device = 'mps'):
 		super().__init__()
+
+		mps = torch.device("mps") # HACK
+
 		self.if_index = if_index
 		self.if_global_timing = if_global_timing
 		self.if_modulo_timing = if_modulo_timing
 		self.dropout = nn.Dropout(p=dropout)
-		self.index_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10000, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").cuda()
-		self.global_time_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10001, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").cuda()
-		self.modulo_time_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10001, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").cuda()
+		self.index_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10000, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").to(device)
+		self.global_time_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10001, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").to(device)
+		self.modulo_time_embedding = Fundamental_Music_Embedding(d_model = d_model, base=10001, device = device, if_trainable=False, translation_bias_type = None, if_translation_bias_trainable = False, type = "se").to(device)
 
 		position = torch.arange(max_len).unsqueeze(1)
 		div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
